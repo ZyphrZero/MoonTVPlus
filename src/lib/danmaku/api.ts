@@ -220,6 +220,7 @@ export interface DanmakuMemory {
   animeTitle: string;
   episodeTitle: string;
   timestamp: number;
+  searchKeyword?: string; // 用户手动搜索时使用的关键词
 }
 
 // 保存弹幕选择记忆
@@ -228,7 +229,8 @@ export function saveDanmakuMemory(
   animeId: number,
   episodeId: number,
   animeTitle: string,
-  episodeTitle: string
+  episodeTitle: string,
+  searchKeyword?: string // 可选的搜索关键词
 ): void {
   if (typeof window === 'undefined') return;
 
@@ -240,6 +242,7 @@ export function saveDanmakuMemory(
       animeTitle,
       episodeTitle,
       timestamp: Date.now(),
+      searchKeyword, // 保存搜索关键词
     };
 
     // 获取现有的记忆

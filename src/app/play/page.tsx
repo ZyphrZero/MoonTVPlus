@@ -187,6 +187,7 @@ function PlayPageClient() {
   const [danmakuMatches, setDanmakuMatches] = useState<DanmakuAnime[]>([]);
   const [showDanmakuSourceSelector, setShowDanmakuSourceSelector] = useState(false);
   const [showDanmakuFilterSettings, setShowDanmakuFilterSettings] = useState(false);
+  const [currentSearchKeyword, setCurrentSearchKeyword] = useState<string>(''); // 当前搜索使用的关键词
   const [toast, setToast] = useState<ToastProps | null>(null);
 
   useEffect(() => {
@@ -1632,13 +1633,14 @@ function PlayPageClient() {
   const handleDanmakuSelect = async (selection: DanmakuSelection) => {
     setCurrentDanmakuSelection(selection);
 
-    // 保存选择记忆
+    // 保存选择记忆（包含搜索关键词）
     saveDanmakuMemory(
       videoTitleRef.current,
       selection.animeId,
       selection.episodeId,
       selection.animeTitle,
-      selection.episodeTitle
+      selection.episodeTitle,
+      selection.searchKeyword // 保存用户使用的搜索关键词
     );
 
     // 获取该动漫的所有剧集列表
@@ -1691,13 +1693,14 @@ function PlayPageClient() {
 
           setCurrentDanmakuSelection(selection);
 
-          // 保存选择记忆
+          // 保存选择记忆（使用当前搜索关键词）
           saveDanmakuMemory(
             title,
             selection.animeId,
             selection.episodeId,
             selection.animeTitle,
-            selection.episodeTitle
+            selection.episodeTitle,
+            currentSearchKeyword || undefined // 使用保存的搜索关键词
           );
 
           // 加载弹幕
@@ -1794,38 +1797,79 @@ function PlayPageClient() {
 
             setCurrentDanmakuSelection(selection);
 
-            // 更新选择记忆
+            // 更新选择记忆（保留原搜索词）
             saveDanmakuMemory(
               title,
               selection.animeId,
               selection.episodeId,
               selection.animeTitle,
-              selection.episodeTitle
+              selection.episodeTitle,
+              memory.searchKeyword // 保留原有的搜索关键词
             );
 
             await loadDanmaku(episode.episodeId);
             return;
           }
         }
-      } catch (error) {
-        console.error('获取弹幕剧集列表失败:', error);
+
+        // 如果使用记忆加载失败，清除该记忆并继续自动搜索
+        console.warn('[弹幕] 使用缓存加载失败，清除缓存并从头搜索');
         if (artPlayerRef.current) {
-          artPlayerRef.current.notice.show = '弹幕加载失败：无法获取剧集列表';
+          artPlayerRef.current.notice.show = '缓存的弹幕源失效，正在重新搜索...';
+        }
+        // 清除失效的记忆
+        if (typeof window !== 'undefined') {
+          try {
+            const memoriesJson = localStorage.getItem('danmaku_memories');
+            if (memoriesJson) {
+              const memories = JSON.parse(memoriesJson);
+              delete memories[title];
+              localStorage.setItem('danmaku_memories', JSON.stringify(memories));
+              console.log('[弹幕] 已清除失效的缓存记忆');
+            }
+          } catch (e) {
+            console.error('[弹幕] 清除缓存记忆失败:', e);
+          }
+        }
+      } catch (error) {
+        console.error('[弹幕] 使用缓存加载失败:', error);
+        if (artPlayerRef.current) {
+          artPlayerRef.current.notice.show = '缓存的弹幕源失效，正在重新搜索...';
+        }
+        // 清除失效的记忆
+        if (typeof window !== 'undefined') {
+          try {
+            const memoriesJson = localStorage.getItem('danmaku_memories');
+            if (memoriesJson) {
+              const memories = JSON.parse(memoriesJson);
+              delete memories[title];
+              localStorage.setItem('danmaku_memories', JSON.stringify(memories));
+              console.log('[弹幕] 已清除失效的缓存记忆');
+            }
+          } catch (e) {
+            console.error('[弹幕] 清除缓存记忆失败:', e);
+          }
         }
       }
+      // 继续执行后面的自动搜索逻辑，不要 return
     }
 
     // 自动搜索弹幕
     setDanmakuLoading(true);
 
+    // 优先使用保存的搜索关键词，否则使用视频标题
+    const searchKeyword = memory?.searchKeyword || title;
+    console.log('[弹幕] 搜索关键词:', searchKeyword, memory?.searchKeyword ? '(使用保存的关键词)' : '(使用视频标题)');
+
     try {
-      const searchResult = await searchAnime(title);
+      const searchResult = await searchAnime(searchKeyword);
 
       if (searchResult.success && searchResult.animes.length > 0) {
         // 如果有多个匹配结果，让用户选择
         if (searchResult.animes.length > 1) {
           console.log(`找到 ${searchResult.animes.length} 个弹幕源，等待用户选择`);
           setDanmakuMatches(searchResult.animes);
+          setCurrentSearchKeyword(searchKeyword); // 保存当前搜索关键词
           setShowDanmakuSourceSelector(true);
           setDanmakuLoading(false);
           if (artPlayerRef.current) {
@@ -1864,13 +1908,14 @@ function PlayPageClient() {
 
             setCurrentDanmakuSelection(selection);
 
-            // 保存选择记忆
+            // 保存选择记忆（保存搜索关键词）
             saveDanmakuMemory(
               title,
               selection.animeId,
               selection.episodeId,
               selection.animeTitle,
-              selection.episodeTitle
+              selection.episodeTitle,
+              searchKeyword // 保存实际使用的搜索关键词
             );
 
             // 加载弹幕

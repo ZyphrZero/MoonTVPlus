@@ -96,11 +96,12 @@ export default function DanmakuPanel({
         episodeId: episode.episodeId,
         animeTitle: selectedAnime.animeTitle,
         episodeTitle: episode.episodeTitle,
+        searchKeyword: searchKeyword.trim() || undefined, // 使用当前搜索框的关键词
       };
 
       onDanmakuSelect(selection);
     },
-    [selectedAnime, onDanmakuSelect]
+    [selectedAnime, searchKeyword, onDanmakuSelect]
   );
 
   // 回到搜索结果
